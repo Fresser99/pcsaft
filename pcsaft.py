@@ -1,3 +1,6 @@
+from functools import lru_cache
+from typing import Tuple
+from scipy.optimize import brentq, differential_evolution
 import numpy as np
 
 
@@ -12,12 +15,18 @@ class PCSAFT:
             'N_av': 6.022140857e23,
             'kb': 1.380648465952442093e-23,
             'pi': 3.141592653589793,
-            'a0': np.array([0.910563145, 0.636128145, 2.686134789, -26.54736249, 97.75920878, -159.5915409, 91.29777408]),
-            'a1': np.array([-0.308401692, 0.186053116, -2.503004726, 21.41979363, -65.25588533, 83.31868048, -33.74692293]),
-            'a2': np.array([-0.090614835, 0.452784281, 0.596270073, -1.724182913, -4.130211253, 13.77663187, -8.672847037]),
-            'b0': np.array([0.724094694, 2.238279186, -4.002584949, -21.00357682, 26.85564136, 206.5513384, -355.6023561]),
-            'b1': np.array([-0.575549808, 0.699509552, 3.892567339, -17.21547165, 192.6722645, -161.8264617, -165.2076935]),
-            'b2': np.array([0.097688312, -0.255757498, -9.155856153, 20.64207597, -38.80443005, 93.62677408, -29.66690559]),
+            'a0': np.array(
+                [0.910563145, 0.636128145, 2.686134789, -26.54736249, 97.75920878, -159.5915409, 91.29777408]),
+            'a1': np.array(
+                [-0.308401692, 0.186053116, -2.503004726, 21.41979363, -65.25588533, 83.31868048, -33.74692293]),
+            'a2': np.array(
+                [-0.090614835, 0.452784281, 0.596270073, -1.724182913, -4.130211253, 13.77663187, -8.672847037]),
+            'b0': np.array(
+                [0.724094694, 2.238279186, -4.002584949, -21.00357682, 26.85564136, 206.5513384, -355.6023561]),
+            'b1': np.array(
+                [-0.575549808, 0.699509552, 3.892567339, -17.21547165, 192.6722645, -161.8264617, -165.2076935]),
+            'b2': np.array(
+                [0.097688312, -0.255757498, -9.155856153, 20.64207597, -38.80443005, 93.62677408, -29.66690559]),
             'a0dip': [0.3043504, -0.1358588, 1.4493329, 0.3556977, -2.0653308],
             'a1dip': [0.9534641, -1.8396383, 2.0131180, -7.3724958, 8.2374135],
             'a2dip': [-1.1610080, 4.5258607, 0.9751222, -12.281038, 5.9397575],
@@ -31,7 +40,6 @@ class PCSAFT:
         }
 
     def compute_z(self, rho: float, T: float, comp: np.ndarray, param):
-
         d = param.s * (1 - 0.12 * np.exp(-3 * param.e / T))
 
         Den = rho * self.param['N_av'] / 1e30
@@ -80,7 +88,6 @@ class PCSAFT:
             (3 * (zeta[2] ** 3) - zeta[3] * (zeta[2] ** 3)) / zeta[0] / (1 - zeta[3]) ** 3
 
     def _compute_ab(self, m_avg: float) -> tuple[np.ndarray, np.ndarray]:
-
         a = self.param['a0'] + (m_avg - 1) / m_avg * self.param['a1'] + (m_avg - 1) / m_avg * (m_avg - 2) / m_avg * \
             self.param['a2']
         b = self.param['b0'] + (m_avg - 1) / m_avg * self.param['b1'] + (m_avg - 1) / m_avg * (m_avg - 2) / m_avg * \
@@ -102,3 +109,78 @@ class PCSAFT:
                 2 * eta3 ** 3 + 12 * eta3 ** 2 - 48 * eta3 + 40) / (((1 - eta3) * (2 - eta3)) ** 3))
         return C1, C2
 
+    def compute_density(self, T, p, comp, phase, param):
+        try:
+            self._validate_inputs(T, p, comp, phase, param)
+
+            num_pts = 50  # 增加点数以提高精度
+
+            rho_guesses = np.logspace(-13, np.log10(0.7405), num_pts)
+            x_low, x_up = self._find_root_intervals(rho_guesses, T, p, comp, param)
+
+            if len(x_low) == 1:
+                return self._solve_density(x_low[0], x_up[0], T, p, comp, param)
+            elif 1 < len(x_low) <= 3:
+                return self._solve_density(x_low[-1] if phase == 0 else x_low[0],
+                                           x_up[-1] if phase == 0 else x_up[0],
+                                           T, p, comp, param)
+            elif len(x_low) > 3:
+                return self._solve_multiple_roots(x_low, x_up, T, p, comp, param)
+            else:
+                return self._global_optimization(T, p, comp, param)
+        except Exception as e:
+            raise ValueError(f"无法计算密度: {str(e)}")
+
+    @lru_cache(maxsize=128)
+    def _solve_density(self, rho_low: float, rho_up: float, T: float, p: float, comp: np.ndarray,
+                       param) -> float:
+        """使用Brent方法求解密度"""
+        rho_low = self.compute_molar_density(rho_low, T, len(comp), comp, param)
+        rho_up = self.compute_molar_density(rho_up, T, len(comp), comp, param)
+
+        def f(rho):
+            return self.solve_rho(rho, T, p, comp, param)
+
+        return brentq(f, rho_low, rho_up, xtol=1e-8, maxiter=200)
+
+    def _solve_multiple_roots(self, x_low, x_up, T:float, p: float, comp: np.ndarray,
+                              param) -> float:
+        """使用差分进化算法处理多个根的情况"""
+        bounds = list(zip(x_low, x_up))
+        result = differential_evolution(lambda x: self.compute_pcsaft_gibbs(T, x[0], comp, param),
+                                        bounds, popsize=20, tol=1e-8)
+        return result.x[0]
+
+    def _global_optimization(self, T: float, p: float, comp: List[float], param: Dict) -> float:
+        """当没有找到根时使用全局优化"""
+        bounds = [(1e-8, 7.4)]
+        result = differential_evolution(
+            lambda x: abs(self.compute_pressure_residual(x[0], T, p, comp, param)),
+            bounds, popsize=20, tol=1e-8)
+        return self.compute_pcsaft_molar_density(result.x[0], T, len(comp), comp, param)
+
+    def _find_root_intervals(self, rho_guesses: np.ndarray, T: float, p: float, comp: List[float], param: Dict) -> \
+    Tuple[List[float], List[float]]:
+        """找出可能的根区间"""
+        x_low, x_up = [], []
+        P_err_prev = self.compute_pressure_residual(rho_guesses[0], T, p, comp, param)
+
+        for rho_guess in rho_guesses[1:]:
+            P_err = self.compute_pressure_residual(rho_guess, T, p, comp, param)
+
+            if P_err_prev * P_err < 0:
+                x_low.append(rho_guesses[rho_guesses < rho_guess][-1])
+                x_up.append(rho_guess)
+
+            P_err_prev = P_err
+
+        return x_low, x_up
+
+    def _validate_inputs(self, T: float, p: float, comp: List[float], phase: int, param: Dict):
+        """验证输入参数"""
+        if T <= 0 or p <= 0:
+            raise ValueError("温度和压力必须为正值")
+        if not (0 <= phase <= 1):
+            raise ValueError("相态必须为0（液相）或1（气相）")
+        if not (0.99 <= sum(comp) <= 1.01):
+            raise ValueError("组分之和必须接近1")
