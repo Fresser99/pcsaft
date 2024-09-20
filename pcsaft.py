@@ -3,7 +3,6 @@ from typing import Tuple
 from scipy.optimize import brentq, differential_evolution
 import numpy as np
 
-
 class PCSAFT:
 
     def __init__(self):
@@ -110,12 +109,12 @@ class PCSAFT:
         return C1, C2
 
     def compute_density(self, T, p, comp, phase, param):
+
         try:
             self._validate_inputs(T, p, comp, phase, param)
 
-            num_pts = 50  # 增加点数以提高精度
-
-            rho_guesses = np.logspace(-13, np.log10(0.7405), num_pts)
+            num_pts = 50
+            rho_guesses = np.linspace(1e-13, 0.7405, num_pts)
             x_low, x_up = self._find_root_intervals(rho_guesses, T, p, comp, param)
 
             if len(x_low) == 1:
@@ -131,10 +130,9 @@ class PCSAFT:
         except Exception as e:
             raise ValueError(f"无法计算密度: {str(e)}")
 
-    @lru_cache(maxsize=128)
-    def _solve_density(self, rho_low: float, rho_up: float, T: float, p: float, comp: np.ndarray,
-                       param) -> float:
-        """使用Brent方法求解密度"""
+    def _solve_density(self, rho_low, rho_up, T, p, comp: np.ndarray,
+                       param):
+
         rho_low = self.compute_molar_density(rho_low, T, len(comp), comp, param)
         rho_up = self.compute_molar_density(rho_up, T, len(comp), comp, param)
 
@@ -143,30 +141,30 @@ class PCSAFT:
 
         return brentq(f, rho_low, rho_up, xtol=1e-8, maxiter=200)
 
-    def _solve_multiple_roots(self, x_low, x_up, T:float, p: float, comp: np.ndarray,
+    def _solve_multiple_roots(self, x_low, x_up, T: float, p: float, comp: np.ndarray,
                               param) -> float:
-        """使用差分进化算法处理多个根的情况"""
+
         bounds = list(zip(x_low, x_up))
-        result = differential_evolution(lambda x: self.compute_pcsaft_gibbs(T, x[0], comp, param),
+        result = differential_evolution(lambda x: self.compute_Gres(T, x[0], comp, param),
                                         bounds, popsize=20, tol=1e-8)
         return result.x[0]
 
-    def _global_optimization(self, T: float, p: float, comp: List[float], param: Dict) -> float:
-        """当没有找到根时使用全局优化"""
+    def _global_optimization(self, T: float, p: float, comp, param) -> float:
         bounds = [(1e-8, 7.4)]
         result = differential_evolution(
             lambda x: abs(self.compute_pressure_residual(x[0], T, p, comp, param)),
             bounds, popsize=20, tol=1e-8)
-        return self.compute_pcsaft_molar_density(result.x[0], T, len(comp), comp, param)
+        return self.compute_molar_density(result.x[0], T, len(comp), comp, param)
 
-    def _find_root_intervals(self, rho_guesses: np.ndarray, T: float, p: float, comp: List[float], param: Dict) -> \
-    Tuple[List[float], List[float]]:
-        """找出可能的根区间"""
+    def _find_root_intervals(self, rho_guesses, T: float, p: float, comp: np.ndarray, param):
+
         x_low, x_up = [], []
-        P_err_prev = self.compute_pressure_residual(rho_guesses[0], T, p, comp, param)
+        P_err_prev = self.compute_pressure_residual(
+            self.compute_molar_density(rho_guesses[0], T, len(comp), comp, param), T, p, comp, param)
 
         for rho_guess in rho_guesses[1:]:
-            P_err = self.compute_pressure_residual(rho_guess, T, p, comp, param)
+            rho_molar = self.compute_molar_density(rho_guess, T, len(comp), comp, param)
+            P_err = self.compute_pressure_residual(rho_molar, T, p, comp, param)
 
             if P_err_prev * P_err < 0:
                 x_low.append(rho_guesses[rho_guesses < rho_guess][-1])
@@ -176,11 +174,116 @@ class PCSAFT:
 
         return x_low, x_up
 
-    def _validate_inputs(self, T: float, p: float, comp: List[float], phase: int, param: Dict):
+    def _validate_inputs(self, T: float, p: float, comp: np.ndarray, phase: int, param):
         """验证输入参数"""
         if T <= 0 or p <= 0:
             raise ValueError("温度和压力必须为正值")
         if not (0 <= phase <= 1):
             raise ValueError("相态必须为0（液相）或1（气相）")
-        if not (0.99 <= sum(comp) <= 1.01):
+        if not (0.99 <= np.sum(comp) <= 1.01):
             raise ValueError("组分之和必须接近1")
+
+    def compute_molar_density(self, rho_low, T, n, comp, param):
+
+        d = param.s * (1 - 0.12 * np.exp(-3 * param.e / T))
+        sum_c = np.sum(comp * param.m * d ** 3)
+        Molar_Density = 6 / self.param['pi'] * rho_low / sum_c * 1.0e30 / self.param['N_av']
+        return Molar_Density
+
+    def compute_pressure_residual(self, rho_guess, T, p, comp, param):
+
+        Pcal = self._compute_P(rho_guess, T, comp, param)
+        resid = (Pcal - p) / p
+        if np.isinf(resid):
+            P_Residual = 10e300
+        else:
+            P_Residual = resid
+        return P_Residual
+
+    def _compute_P(self, rho_guess, T, comp, param):
+
+        Den = rho_guess * self.param['N_av'] / 1e30
+        Z = self.compute_z(rho_guess, T, comp, param)
+        # pa
+        P = Z * self.param['kb'] * T * Den * 1e30
+
+        return P
+
+    def solve_rho(self, rho, T, p, comp, param):
+
+        pcal = self._compute_P(rho, T, comp, param)
+        return pcal - p
+
+    def compute_Gres(self, T, rho, comp, param):
+
+        ares = self.compute_Ares(T, rho, comp, param)
+
+        Z = self.compute_z(rho, T, comp, param)
+
+        P = self._compute_P(rho, T, comp, param)
+
+        gres = (ares + (Z - 1) - np.log(Z)) * self.param['kb'] * self.param['N_av'] * T + self.param['kb'] * self.param[
+            'N_AV'] * T * np.log(P / 101325)
+
+        Gres = gres
+
+        return Gres
+
+    def compute_Ares(self, T, rho, comp, param):
+
+        d = param.s * (1 - 0.12 * np.exp(-3 * param.e / T))
+        Den = rho * self.param['N_av'] / 1e30
+        zeta = self.param['pi'] / 6 * Den * np.sum((comp * param.m)[:, np.newaxis] * d[:, np.newaxis] ** np.arange(4),
+                                                   axis=0)
+
+        m_avg = np.sum(comp * param.m)
+
+        g_hs, delta_ghs_rho = self._compute_hs_terms(d, zeta)
+        s_ij = 0.5 * (param.s[:, np.newaxis] + param.s)
+        e_ij = np.sqrt(np.outer(param.e, param.e)) * (1 - param.k_ij)
+
+        m2es3 = np.sum(np.outer(comp * param.m, comp * param.m) * (e_ij / T) * s_ij ** 3)
+        m2e2s3 = np.sum(np.outer(comp * param.m, comp * param.m) * (e_ij / T) ** 2 * s_ij ** 3)
+
+        ares_hs = self._compute_Ares_hs(zeta)
+
+        sum3 = np.sum(comp * (param.m - 1) * np.log(np.diag(g_hs)))
+
+        a, b = self._compute_ab(m_avg)
+
+        eta3_powers = zeta[3] ** np.arange(7)
+        I1 = np.sum(a * eta3_powers)
+        I2 = np.sum(b * eta3_powers)
+        C1 = 1 / (1 + m_avg * (8 * zeta[3] - 2 * zeta[3] ** 2) / ((1 - zeta[3]) ** 4) + (1 - m_avg) * (
+                20 * zeta[3] - 27 * zeta[3] ** 2 + 12 * (zeta[3] ** 3) - 2 * (zeta[3] ** 4)) / (
+                      (((1 - zeta[3]) * (2 - zeta[3])) ** 2)))
+
+        ares_hc = m_avg * ares_hs - sum3
+        ares_disp = -2 * self.param['pi'] * Den * I1 * m2es3 - self.param['pi'] * Den * m_avg * C1 * I2 * m2e2s3;
+        ares = ares_hc + ares_disp
+        return ares
+
+    def _compute_Ares_hs(self, zeta):
+
+        return 1 / zeta[0] * (
+                3 * zeta[1] * zeta[2] / (1 - zeta[3]) + (zeta[2] ** 3) / (zeta[3] * (1 - zeta[3]) ** 2) + (
+                (zeta[2] ** 3) / (zeta[3] ** 2) - zeta[0]) * np.log(1 - zeta[3]))
+
+    def compute_hres(self, T, rho, comp, param):
+
+        Z = self.compute_z(rho, T, comp, param)
+        dares_dt = self.compute_dadT(T, rho, comp, param)
+        hres = (-T * dares_dt + (Z - 1)) * self.param['kb'] * self.param['N_av'] * T
+
+        return hres
+
+    def compute_dadT(self, T, rho, comp, param):
+
+        d = param.s * (1 - 0.12 * np.exp(-3 * param.e / T))
+        dd_dT = param.s * -3 * param.e / T ** 2 * 0.12 * np.exp(-3 * param.e / T)
+        den = rho * self.param['N_av'] / 1e30
+
+        zeta = self.param['pi'] / 6 * den * np.sum((comp * param.m)[:, np.newaxis] * d[:, np.newaxis] ** np.arange(4),
+                                                   axis=0)
+
+        return 0.
