@@ -3,6 +3,7 @@ from typing import Tuple
 from scipy.optimize import brentq, differential_evolution
 import numpy as np
 
+
 class PCSAFT:
 
     def __init__(self):
@@ -74,7 +75,6 @@ class PCSAFT:
         d_ij_term = d[:, np.newaxis] * d / d_ij
         g_hs = 1 / (1 - zeta[3]) + d_ij_term * 3 * zeta[2] / (1 - zeta[3]) ** 2 + d_ij_term ** 2 * 2 * zeta[2] ** 2 / (
                 1 - zeta[3]) ** 3
-
         delta_ghs_rho = zeta[3] / (1 - zeta[3]) ** 2 + d_ij_term * (
                 3 * zeta[2] / (1 - zeta[3]) ** 2 + 6 * zeta[2] * zeta[3] / (1 - zeta[3]) ** 3) + d_ij_term ** 2 * (
                                 4 * zeta[2] ** 2 / (1 - zeta[3]) ** 3 + 6 * zeta[2] ** 2 * zeta[3] / (
@@ -282,8 +282,88 @@ class PCSAFT:
         d = param.s * (1 - 0.12 * np.exp(-3 * param.e / T))
         dd_dT = param.s * -3 * param.e / T ** 2 * 0.12 * np.exp(-3 * param.e / T)
         den = rho * self.param['N_av'] / 1e30
-
         zeta = self.param['pi'] / 6 * den * np.sum((comp * param.m)[:, np.newaxis] * d[:, np.newaxis] ** np.arange(4),
                                                    axis=0)
+        eta3 = zeta[4]
+        m_avg = np.sum(comp * param.m)
+        dzeta_dT = self.param['pi'] / 6 * den * np.sum(
+            (comp * param.m)[:, np.newaxis] * np.arange(4)[np.newaxis, :] * dd_dT[:, np.newaxis] * d[:, np.newaxis] ** (
+                    np.arange(4) - 1), axis=0)
 
-        return 0.
+        ghs, delta_ghs_rho = self._compute_hs_terms(d, zeta)
+        ddij_dt = (d[:, np.newaxis] * d[np.newaxis, :] / (d[:, np.newaxis] + d[np.newaxis, :])) * (
+                dd_dT[:, np.newaxis] / d[:, np.newaxis] + dd_dT[np.newaxis, :] / d[np.newaxis, :] -
+                (dd_dT[:, np.newaxis] + dd_dT[np.newaxis, :]) / (d[:, np.newaxis] + d[np.newaxis, :]))
+        s_ij = 0.5 * (param.s[:, np.newaxis] + param.s[np.newaxis, :])
+        e_ij = np.sqrt(param.e[:, np.newaxis] * param.e[np.newaxis, :]) * (1 - param.k_ij)
+
+        m2es3 = np.sum(comp[:, np.newaxis] * comp[np.newaxis, :] * param.m[:, np.newaxis] * param.m[np.newaxis, :] * (
+                e_ij / T) * s_ij ** 3)
+        m2e2s3 = np.sum(comp[:, np.newaxis] * comp[np.newaxis, :] * param.m[:, np.newaxis] * param.m[np.newaxis, :] * (
+                (e_ij / T) ** 2) * s_ij ** 3)
+        dghs_dt = (dzeta_dT[3] / (1 - zeta[3]) ** 2 +
+                   3 * (ddij_dt * zeta[2] + (
+                        d[:, np.newaxis] * d[np.newaxis, :] / (d[:, np.newaxis] + d[np.newaxis, :])) * dzeta_dT[
+                            2]) / (1 - zeta[3]) ** 2 +
+                   4 * (d[:, np.newaxis] * d[np.newaxis, :] / (d[:, np.newaxis] + d[np.newaxis, :])) * zeta[2] * (
+                           1.5 * dzeta_dT[3] + ddij_dt * zeta[2] +
+                           (d[:, np.newaxis] * d[np.newaxis, :] / (d[:, np.newaxis] + d[np.newaxis, :])) * dzeta_dT[
+                               2]) / (1 - zeta[3]) ** 3 +
+                   6 * ((d[:, np.newaxis] * d[np.newaxis, :] / (d[:, np.newaxis] + d[np.newaxis, :])) * zeta[2]) ** 2 *
+                   dzeta_dT[3] / (1 - zeta[3]) ** 4)
+
+        dadt_hs = (1 / zeta[0] * (3 * (dzeta_dT[1] * zeta[2] + zeta[1] * dzeta_dT[2]) / (1 - zeta[3]) +
+                                  3 * zeta[1] * zeta[2] * dzeta_dT[3] / (1 - zeta[3]) ** 2 +
+                                  3 * zeta[2] ** 2 * dzeta_dT[2] / zeta[3] / (1 - zeta[3]) ** 2 +
+                                  zeta[2] ** 3 * dzeta_dT[3] * (3 * zeta[3] - 1) / zeta[3] ** 2 / (1 - zeta[3]) ** 3 +
+                                  (3 * zeta[2] ** 2 * dzeta_dT[2] * zeta[3] - 2 * zeta[2] ** 3 * dzeta_dT[3]) / zeta[
+                                      3] ** 3 * np.log(1 - zeta[3]) +
+                                  (zeta[0] - zeta[2] ** 3 / zeta[3] ** 2) * dzeta_dT[3] / (1 - zeta[3])))
+
+        a = self.param['a0'] + (m_avg - 1) / m_avg * self.param['a1'] + (m_avg - 1) * (m_avg - 2) / m_avg ** 2 * \
+            self.param['a2']
+        b = self.param['b0'] + (m_avg - 1) / m_avg * self.param['b1'] + (m_avg - 1) * (m_avg - 2) / m_avg ** 2 * \
+            self.param['b2']
+
+        I1 = np.sum(a * eta3 ** np.arange(7))
+        I2 = np.sum(b * eta3 ** np.arange(7))
+        detI1_det = np.sum(a * np.arange(7) * eta3 ** (np.arange(7) - 1) * dzeta_dT[3])
+        detI2_det = np.sum(b * np.arange(7) * eta3 ** (np.arange(7) - 1) * dzeta_dT[3])
+
+        C1 = 1 / (1 + m_avg * (8 * eta3 - 2 * eta3 ** 2) / (1 - eta3) ** 4 +
+                  (1 - m_avg) * (20 * eta3 - 27 * eta3 ** 2 + 12 * eta3 ** 3 - 2 * eta3 ** 4) / (
+                          (1 - eta3) * (2 - eta3)) ** 2)
+        C2 = -C1 ** 2 * (m_avg * (-4 * eta3 ** 2 + 20 * eta3 + 8) / (1 - eta3) ** 5 +
+                         (1 - m_avg) * (2 * eta3 ** 3 + 12 * eta3 ** 2 - 48 * eta3 + 40) / (
+                                 (1 - eta3) * (2 - eta3)) ** 3)
+        dC1_dt = C2 * dzeta_dT[3]
+
+        summ = np.sum(comp * (param.m - 1) * np.diag(dghs_dt) / np.diag(ghs))
+        dadt_hc = m_avg * dadt_hs - summ
+
+        dadt_disp = -2 * self.param['pi'] * den * (detI1_det - I1 / T) * m2es3 - self.param['pi'] * den * m_avg * (
+                dC1_dt * I2 + C1 * detI2_det - 2 * C1 * I2 / T) * m2e2s3
+
+        return dadt_hs + dadt_hc + dadt_disp
+
+    def compute_sres(self, T, rho, comp, param):
+
+        ares = self.compute_Ares(T, rho, comp, param)
+        Z = self.compute_z(rho, T, comp, param)
+        P = self._compute_P(rho, T, comp, param)
+        Sres = (-T * (self.compute_dadT(T, rho, comp, param) + ares / T) + np.log(
+            Z)) * self.param['kb'] * self.param['N_av'] - self.param['kb'] * self.param['N_av'] * np.log(P / 101325)
+        return Sres
+
+    def compute_den_correction(self, rho, polymer_zeroth_mole_frac, dpn):
+
+        return rho * (1 - polymer_zeroth_mole_frac) + rho * polymer_zeroth_mole_frac * dpn
+
+    def compute_z_correction(self, z, polymer_first_mole_frac, polymer_zeroth_mole_frac):
+
+        return z * (1 - polymer_first_mole_frac) + z * polymer_zeroth_mole_frac
+
+    def compute_hres_correction(self, hres, dpn):
+
+        return hres / dpn
+
