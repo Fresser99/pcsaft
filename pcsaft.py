@@ -364,13 +364,42 @@ class PCSAFT:
 
         return hres / dpn
 
-    def compute_hig(self):
+    def compute_hig(self, param, T):
 
-        pass
+        flag = param.type
 
-    def compute_cpig(self):
+        Tsp = np.linspace(start=298.15, stop=T, num=10000)
 
-        pass
+        self.compute_cpig(Tsp,param,flag)
+
+        return Tsp
+
+    def compute_cpig(self, T, param, flag):
+
+        cpig = np.zeros(len(flag))
+        for i in flag:
+
+            # 聚合物物质
+            if i == 1:
+
+                c7 = param.CPIG[i][6]
+                c8 = param.CPIG[i][7]
+
+                if c7 <= T <= c8:
+                    cpig[i] = np.sum(T ** np.arange(6) * param.CPIG[i][0:6])
+                elif T < c7:
+                    cpig[i] = param.CPIG[i][8] + param.CPIG[i][9] * T ** param.CPIG[i][10]
+                else:
+                    cpig[i] = (np.sum((param.CPIG[i][7] + 1e-6) ** np.arange(6) * param.CPIG[i][0:6]) - np.sum(
+                        param.CPIG[i][7] ** np.arange(6) * param.CPIG[i][0:6])) / 1e-6 * (T - c8) + np.sum(
+                        param.CPIG[i][7] ** np.arange(6) * param.CPIG[i][0:6])
+            elif i == 0:
+
+                cpig[i] = param.CPIG[i][0] + param.CPIG[i][1] * (
+                        param.CPIG[i][2] / np.sinh(param.CPIG[i][2] / T)) ** 2 + param.CPIG[3] * (
+                                  param.CPIG[4] / T / np.cosh(param.CPIG[4] / T)) ** 2
+
+        return cpig
 
     def compute_Enthalpy(self, hig, hres, cpig, T):
 
