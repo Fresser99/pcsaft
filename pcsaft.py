@@ -320,10 +320,7 @@ class PCSAFT:
                                       3] ** 3 * np.log(1 - zeta[3]) +
                                   (zeta[0] - zeta[2] ** 3 / zeta[3] ** 2) * dzeta_dT[3] / (1 - zeta[3])))
 
-        a = self.param['a0'] + (m_avg - 1) / m_avg * self.param['a1'] + (m_avg - 1) * (m_avg - 2) / m_avg ** 2 * \
-            self.param['a2']
-        b = self.param['b0'] + (m_avg - 1) / m_avg * self.param['b1'] + (m_avg - 1) * (m_avg - 2) / m_avg ** 2 * \
-            self.param['b2']
+        a, b = self._compute_ab(m_avg)
 
         I1 = np.sum(a * eta3 ** np.arange(7))
         I2 = np.sum(b * eta3 ** np.arange(7))
@@ -367,3 +364,14 @@ class PCSAFT:
 
         return hres / dpn
 
+    def compute_hig(self):
+
+        pass
+
+    def compute_cpig(self):
+
+        pass
+
+    def compute_Enthalpy(self, hig, hres, cpig, T):
+
+        pass
