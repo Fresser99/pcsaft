@@ -9,29 +9,38 @@
 
 ### 函数汇总表
 
-| 函数名称                          | 描述                                                                 |
-|-----------------------------------|----------------------------------------------------------------------|
-| `__init__(self)`                  | 初始化 PCSAFT 类的实例                                            |
-| `param_init(self)`                | 设置 PC-SAFT 模型的默认参数                                        |
-| `compute_z(self, rho, T, comp, param)` | 计算压缩因子 `Z`                                                  |
-| `_compute_hs_terms(self, d, zeta)`| 计算硬球径向分布函数 `g_hs` 及其密度导数                           |
-| `_compute_zhs(self, zeta)`        | 计算硬球压缩因子 `Zhs`                                            |
-| `_compute_ab(self, m_avg)`        | 计算色散相互作用的系数 `a` 和 `b`                                 |
-| `_compute_I_terms(self, eta3, a, b)` | 计算色散能量的积分系数                                            |
-| `_compute_C_terms(self, m_avg, eta3)` | 计算色散相关中的附加修正项 `C1` 和 `C2`                           |
-| `compute_hres(self, T, rho, comp, param)` | 计算焓偏离 `hres`                                                |
-| `compute_sres(self, T, rho, comp, param)` | 计算熵偏离 `Sres`                                                |
-| `compute_Ares(self, T, rho, comp, param)` | 计算亥姆霍兹能偏离 `Ares`                                        |
-| `compute_gres(self, T, rho, comp, param)` | 计算吉布斯自由能偏离 `Gres`                                      |
-| `compute_density(self, T, p, comp, phase, param)` | 计算给定温度和压力下的密度 `rho`                                |
-| `_solve_density(self, rho_low, rho_up, T, p, comp, param)` | 使用 Brent 方法求解密度                                          |
-| `_solve_multiple_roots(self, x_low, x_up, T, p, comp, param)` | 处理具有多个密度根的场景                                         |
-| `_global_optimization(self, T, p, comp, param)` | 应用全局优化策略以找到真实物理状态的根                           |
-| `compute_molar_density(self, rho_low, T, n, comp, param)` | 将初始密度猜测转换为摩尔密度                                     |
-| `compute_pressure_residual(self, rho_guess, T, p, comp, param)` | 计算密度猜测的压力残差                                           |
-| `compute_den_correction(self, rho, polymer_zeroth_mole_frac, mn)` | 计算并返回修正后的密度                                           |
-| `compute_z_correction(self, z, polymer_first_mole_frac, polymer_zeroth_mole_frac)` | 计算并返回修正后的压缩因子                             |
-| `compute_hres_correction(self, hres, mn)` | 计算并返回修正后的焓偏离                                         |
+| 函数名称                                                         | 描述                         |
+|------------------------------------------------------------------|----------------------------|
+| `__init__(self)`                                                 | 初始化 PCSAFT 类的实例。           |
+| `param_init(self)`                                               | 设置 PC-SAFT 模型的默认参数。        |
+| `compute_z(self, rho, T, comp, param)`                           | 计算压缩因子 `Z`。                |
+| `_compute_hs_terms(self, d, zeta)`                               | 计算硬球径向分布函数 `g_hs` 及其密度导数。  |
+| `_compute_zhs(self, zeta)`                                       | 计算硬球压缩因子 `Zhs`。            |
+| `_compute_ab(self, m_avg)`                                       | 计算色散相互作用的系数 `a` 和 `b`。     |
+| `_compute_I_terms(self, eta3, a, b)`                             | 计算色散能量的积分系数。               |
+| `_compute_C_terms(self, m_avg, eta3)`                            | 计算色散相关中的附加修正项 `C1` 和 `C2`。 |
+| `compute_hres(self, T, rho, comp, param)`                        | 计算焓偏离 `hres`。              |
+| `compute_sres(self, T, rho, comp, param)`                        | 计算熵偏离 `Sres`。              |
+| `compute_Ares(self, T, rho, comp, param)`                        | 计算亥姆霍兹能偏离 `Ares`。          |
+| `compute_gres(self, T, rho, comp, param)`                        | 计算吉布斯自由能偏离 `Gres`。         |
+| `compute_density(self, T, p, comp, phase, param)`                | 计算给定温度和压力下的密度 `rho`。       |
+| `_solve_density(self, rho_low, rho_up, T, p, comp, param)`       | 使用 Brent 方法求解密度。           |
+| `_solve_multiple_roots(self, x_low, x_up, T, p, comp, param)`    | 处理具有多个密度根的场景。              |
+| `_global_optimization(self, T, p, comp, param)`                  | 应用全局优化策略以找到真实物理状态的根。       |
+| `compute_molar_density(self, rho_low, T, n, comp, param)`        | 将初始密度猜测转换为摩尔密度。            |
+| `compute_pressure_residual(self, rho_guess, T, p, comp, param)`  | 计算密度猜测的压力残差。               |
+| `compute_den_correction(self, rho, polymer_zeroth_mole_frac, mn)` | 计算并返回修正后的密度。               |
+| `compute_z_correction(self, z, polymer_first_mole_frac, polymer_zeroth_mole_frac)` | 计算并返回修正后的压缩因子。             |
+| `compute_hres_correction(self, hres, mn)`                        | 计算并返回修正后的焓偏离。              |
+| `compute_hig(self, param, T)`                                    | 计算给定温度的理想气体焓。              |
+| `compute_hig_mix(self, hig_arr, comp)`                           | 计算混合物的理想气体焓。               |
+| `compute_cpig(self, T, param, flag)`                             | 计算混合物的理想气体定压比热容。           |
+| `compute_Enthalpy(self, hig, hres)`                              | 计算混合物的焓。                   |
+| `retrive_param_from_DB(self, CAS, param_name)`                   | 从数据库检索特定参数。                |
+| `compute_glassify_temperature_Askadskii_Matveev(self, param, co_molefrac)` | 计算共聚体系的玻璃化温度。              |
+| `compute_solid_density_Askadskii_Matveev(self, param, T, co_molefrac)` | 计算固相聚合物密度。                 |
+| `compute_solid_heat_capacity_Bicerano(self, param, T, co_molefrac)` | 计算固相聚合物的热容。                |
+| `compute_solid_thermal_conductivity_Askadskii_Matveev(self, param, co_molefrac, T)` | 计算固相聚合物的热导率。               |
 
 ## 使用方法
 ### 安装
@@ -220,6 +229,15 @@ print(rhomix)
   - 应用全局优化策略以找到可能是感兴趣的真实物理状态的根，当简单的区间方法失败时。
 
 ## 实用和支持功能
+### `retrive_param_from_DB(self, CAS, param_name)`
+
+- **参数：**
+  - `CAS`：物质的 CAS 编号。
+  - `param_name`：参数名称。
+  
+- **返回：** 特定参数的值。
+- **算法：**
+  - 从本地数据库文件 `db.csv` 中检索所需参数。
 
 ### `compute_molar_density(self, rho_low, T, n, comp, param)`
 
@@ -323,3 +341,88 @@ print(rhomix)
 - **返回：** 修正后的焓偏离
 - **算法：**
   - 计算并返回修正后的焓偏离，考虑聚合物的平均分子量
+
+### `compute_hig(self, param, T)`
+
+- **参数：**
+  - `param`：参数对象，包含物质的特性。
+  - `T`：终止温度。
+  
+- **返回：** 理想气体焓 `hig`。
+- **算法：**
+  - 通过积分方法，计算从 298.15 K 到目标温度 `T` 的理想气体焓。
+
+### `compute_hig_mix(self, hig_arr, comp)`
+
+- **参数：**
+  - `hig_arr`：理想气体焓数组。
+  - `comp`：混合物组分摩尔分数。
+  
+- **返回：** 混合物的理想气体焓。
+- **算法：**
+  - 对每个组分的焓进行加权平均，获得混合物的理想气体焓。
+
+### `compute_cpig(self, T, param, flag)`
+
+- **参数：**
+  - `T`：温度。
+  - `param`：参数对象。
+  - `flag`：标志数组，标识组分类型。
+  
+- **返回：** 理想气体定压比热容 `cpig`。
+- **算法：**
+  - 根据不同温度区间和组分类型，计算各个组分的定压比热容。
+
+### `compute_Enthalpy(self, hig, hres)`
+
+- **参数：**
+  - `hig`：理想气体焓。
+  - `hres`：焓偏离。
+  
+- **返回：** 混合物的焓。
+- **算法：**
+  - 合并理想气体焓和焓偏离，生成最终焓值。
+
+## 固相聚合物物性计算
+### `compute_glassify_temperature_Askadskii_Matveev(self, param, co_molefrac)`
+
+- **参数：**
+  - `param`：参数对象。
+  - `co_molefrac`：共聚组成摩尔分率。
+  
+- **返回：** 玻璃化温度 `Tg`。
+- **算法：**
+  - 计算共聚体系的玻璃化温度，考虑摩尔分数和参数。
+
+### `compute_solid_density_Askadskii_Matveev(self, param, T, co_molefrac)`
+
+- **参数：**
+  - `param`：参数对象。
+  - `T`：温度。
+  - `co_molefrac`：共聚组成摩尔分率
+  
+- **返回：** 固体密度。
+- **算法：**
+  - 计算固体密度，考虑温度、玻璃化温度和摩尔分数。
+
+### `compute_solid_heat_capacity_Bicerano(self, param, T, co_molefrac)`
+
+- **参数：**
+  - `param`：参数对象。
+  - `T`：温度。
+  - `co_molefrac`：共聚组成摩尔分率。
+  
+- **返回：** 固体热容。
+- **算法：**
+  - 计算固体的热容，考虑温度和摩尔分数。
+
+### `compute_solid_thermal_conductivity_Askadskii_Matveev(self, param, co_molefrac, T)`
+
+- **参数：**
+  - `param`：参数对象。
+  - `co_molefrac`：共聚组成摩尔分率
+  - `T`：温度。
+  
+- **返回：** 固体热导率。
+- **算法：**
+  - 计算固体的热导率，考虑温度、摩尔分数和参数。
