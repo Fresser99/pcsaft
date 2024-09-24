@@ -2,6 +2,7 @@ from functools import lru_cache
 from typing import Tuple
 from scipy.optimize import brentq, differential_evolution
 import numpy as np
+import pandas as pd
 
 
 class PCSAFT:
@@ -284,7 +285,7 @@ class PCSAFT:
         den = rho * self.param['N_av'] / 1e30
         zeta = self.param['pi'] / 6 * den * np.sum((comp * param.m)[:, np.newaxis] * d[:, np.newaxis] ** np.arange(4),
                                                    axis=0)
-        eta3 = zeta[4]
+        eta3 = zeta[3]
         m_avg = np.sum(comp * param.m)
         dzeta_dT = self.param['pi'] / 6 * den * np.sum(
             (comp * param.m)[:, np.newaxis] * np.arange(4)[np.newaxis, :] * dd_dT[:, np.newaxis] * d[:, np.newaxis] ** (
@@ -368,19 +369,32 @@ class PCSAFT:
 
         flag = param.type
 
-        Tsp = np.linspace(start=298.15, stop=T, num=10000)
+        Tsp = np.linspace(start=298.15, stop=T, num=10001)
 
-        self.compute_cpig(Tsp,param,flag)
+        cpig_arr = self.compute_cpig(Tsp[0], param, flag)
 
-        return Tsp
+        for idx, t in enumerate(Tsp):
+
+            if idx == 0:
+                continue
+            cpig_arr = np.vstack((cpig_arr, self.compute_cpig(t, param, flag)))
+
+        hig = param.HIGTREF*1e6 + (T - 298.15) / (2 * 10001) * (
+                cpig_arr[0, :] + np.sum(cpig_arr[1:-1, :], axis=0) + cpig_arr[-1, :])
+
+        return hig
+
+    def compute_hig_mix(self, hig_arr, comp):
+
+        return np.sum(hig_arr * comp)
 
     def compute_cpig(self, T, param, flag):
 
         cpig = np.zeros(len(flag))
-        for i in flag:
+        for i, f in enumerate(flag):
 
             # 聚合物物质
-            if i == 1:
+            if f == 1:
 
                 c7 = param.CPIG[i][6]
                 c8 = param.CPIG[i][7]
@@ -393,14 +407,57 @@ class PCSAFT:
                     cpig[i] = (np.sum((param.CPIG[i][7] + 1e-6) ** np.arange(6) * param.CPIG[i][0:6]) - np.sum(
                         param.CPIG[i][7] ** np.arange(6) * param.CPIG[i][0:6])) / 1e-6 * (T - c8) + np.sum(
                         param.CPIG[i][7] ** np.arange(6) * param.CPIG[i][0:6])
-            elif i == 0:
+            elif f == 0:
 
                 cpig[i] = param.CPIG[i][0] + param.CPIG[i][1] * (
-                        param.CPIG[i][2] / np.sinh(param.CPIG[i][2] / T)) ** 2 + param.CPIG[3] * (
-                                  param.CPIG[4] / T / np.cosh(param.CPIG[4] / T)) ** 2
+                        param.CPIG[i][2]/T / np.sinh(param.CPIG[i][2] / T)) ** 2 + param.CPIG[i][3] * (
+                                  param.CPIG[i][4] / T / np.cosh(param.CPIG[i][4] / T)) ** 2
 
         return cpig
 
-    def compute_Enthalpy(self, hig, hres, cpig, T):
+    def compute_Enthalpy(self, hig, hres):
+
+        return hig/1000 + hres
+
+    def retrive_param_from_DB(self,CAS,param_name):
+
+        db_path='db.csv'
+        db_df=pd.read_csv(db_path)
+        db_df.set_index(db_df.iloc[:,0],inplace=True)
+        return db_df[CAS][param_name]
+
+    def compute_glassify_temperature_Askadskii_Matveev(self,param,co_molefrac):
+
+        if len(param.type)>2:
+            print('暂不支持多元（>2)的共聚体系')
+            return 0
+
+        if 1 not in param.type:
+
+            return 0
+
+        else:
+
+            Tg_exp_arr=np.array([],dtype=np.float32)
+            van_der_waar_arr=np.array([],dtype=np.float32)
+            for idx ,name in enumerate(param.CAS):
+                Tg_exp_arr = np.append(Tg_exp_arr, np.array(self.retrive_param_from_DB(name, 'Tg'), dtype=np.float32))
+                van_der_waar_arr = np.append(van_der_waar_arr,
+                                             np.array(self.retrive_param_from_DB(name, 'DVAMVDW'), dtype=np.float32))
+
+            Tg = np.sum(van_der_waar_arr * co_molefrac) / (
+                        np.sum(co_molefrac * van_der_waar_arr / Tg_exp_arr) + 0.03 * np.sum(
+                    co_molefrac * (1 - co_molefrac)))
+            return Tg
+
+    def compute_solid_density_Askadskii_Matveev(self,param,T):
 
         pass
+
+
+
+
+
+
+
+
