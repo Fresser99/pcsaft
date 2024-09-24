@@ -37,7 +37,10 @@ class PCSAFT:
             'c0dip': [-0.0646774, 0.1975882, -0.8087562, 0.6902849, 0],
             'c1dip': [-0.9520876, 2.9924258, -2.3802636, -0.2701261, 0],
             'c2dip': [-0.6260979, 1.2924686, 1.6542783, -3.4396744, 0],
-            'conv': 7242.702976750923
+            'conv': 7242.702976750923,
+            'atomic constants': np.array(
+                [1.990, 1.699, -0.205, -0.017, 3.706, -1.693, 8.88, 1.108, 1.548, 0.114, 2.016, 15.226,
+                 3.504, 4.83, -2.755, 0.954])
         }
 
     def compute_z(self, rho: float, T: float, comp: np.ndarray, param):
@@ -379,7 +382,7 @@ class PCSAFT:
                 continue
             cpig_arr = np.vstack((cpig_arr, self.compute_cpig(t, param, flag)))
 
-        hig = param.HIGTREF*1e6 + (T - 298.15) / (2 * 10001) * (
+        hig = param.HIGTREF * 1e6 + (T - 298.15) / (2 * 10001) * (
                 cpig_arr[0, :] + np.sum(cpig_arr[1:-1, :], axis=0) + cpig_arr[-1, :])
 
         return hig
@@ -410,25 +413,25 @@ class PCSAFT:
             elif f == 0:
 
                 cpig[i] = param.CPIG[i][0] + param.CPIG[i][1] * (
-                        param.CPIG[i][2]/T / np.sinh(param.CPIG[i][2] / T)) ** 2 + param.CPIG[i][3] * (
+                        param.CPIG[i][2] / T / np.sinh(param.CPIG[i][2] / T)) ** 2 + param.CPIG[i][3] * (
                                   param.CPIG[i][4] / T / np.cosh(param.CPIG[i][4] / T)) ** 2
 
         return cpig
 
     def compute_Enthalpy(self, hig, hres):
 
-        return hig/1000 + hres
+        return hig / 1000 + hres
 
-    def retrive_param_from_DB(self,CAS,param_name):
+    def retrive_param_from_DB(self, CAS, param_name):
 
-        db_path='db.csv'
-        db_df=pd.read_csv(db_path)
-        db_df.set_index(db_df.iloc[:,0],inplace=True)
+        db_path = 'db.csv'
+        db_df = pd.read_csv(db_path)
+        db_df.set_index(db_df.iloc[:, 0], inplace=True)
         return db_df[CAS][param_name]
 
-    def compute_glassify_temperature_Askadskii_Matveev(self,param,co_molefrac):
+    def compute_glassify_temperature_Askadskii_Matveev(self, param, co_molefrac):
 
-        if len(param.type)>2:
+        if len(param.type) > 2:
             print('暂不支持多元（>2)的共聚体系')
             return 0
 
@@ -438,26 +441,86 @@ class PCSAFT:
 
         else:
 
-            Tg_exp_arr=np.array([],dtype=np.float32)
-            van_der_waar_arr=np.array([],dtype=np.float32)
-            for idx ,name in enumerate(param.CAS):
+            Tg_exp_arr = np.array([], dtype=np.float32)
+            van_der_waar_arr = np.array([], dtype=np.float32)
+            for idx, name in enumerate(param.CAS):
                 Tg_exp_arr = np.append(Tg_exp_arr, np.array(self.retrive_param_from_DB(name, 'Tg'), dtype=np.float32))
                 van_der_waar_arr = np.append(van_der_waar_arr,
                                              np.array(self.retrive_param_from_DB(name, 'DVAMVDW'), dtype=np.float32))
 
             Tg = np.sum(van_der_waar_arr * co_molefrac) / (
-                        np.sum(co_molefrac * van_der_waar_arr / Tg_exp_arr) + 0.03 * np.sum(
-                    co_molefrac * (1 - co_molefrac)))
+                    np.sum(co_molefrac * van_der_waar_arr / Tg_exp_arr) + 0.03 * np.sum(
+                co_molefrac * (1 - co_molefrac)))
             return Tg
 
-    def compute_solid_density_Askadskii_Matveev(self,param,T):
+    def compute_solid_density_Askadskii_Matveev(self, param, T, co_molefrac):
 
-        pass
+        kg = 0.737
+        Tg = self.compute_glassify_temperature_Askadskii_Matveev(param, co_molefrac)
+        alpha_L = np.array([], dtype=np.float32)
+        alpha_G = np.array([], dtype=np.float32)
+        Mw_arr = np.array([], dtype=np.float32)
+        van_der_waar_arr = np.array([], dtype=np.float32)
+        for idx, i in enumerate(param.CAS):
+            alpha_L = np.append(alpha_L, np.array(self.retrive_param_from_DB(i, 'CTE'), dtype=np.float32))
+            van_der_waar_arr = np.append(van_der_waar_arr,
+                                         np.array(self.retrive_param_from_DB(i, 'DVAMVDW'), dtype=np.float32))
+            Mw_arr = np.append(Mw_arr, np.array(self.retrive_param_from_DB(i, 'MW'), dtype=np.float32))
+        alpha_G = alpha_L - 0.113 / Tg
 
+        if T < Tg:
 
+            rho = kg * np.sum(Mw_arr * co_molefrac) / (1 + np.sum(alpha_G * co_molefrac) * (T - Tg)) / np.sum(
+                van_der_waar_arr * 0.6022 * co_molefrac)
+        elif T > Tg:
 
+            rho = kg * np.sum(Mw_arr * co_molefrac) / (1 + np.sum(alpha_L * co_molefrac) * (T - Tg)) / np.sum(
+                van_der_waar_arr * 0.6022 * co_molefrac)
+        else:
+            rho = kg * np.sum(Mw_arr * co_molefrac) / np.sum(
+                van_der_waar_arr * 0.6022 * co_molefrac)
 
+        return rho
 
+    def compute_solid_heat_capacity_Bicerano(self, param, T, co_molefrac):
 
+        Tg = self.compute_glassify_temperature_Askadskii_Matveev(param, co_molefrac)
 
+        CPsTREF_exp = np.array([], dtype=np.float32)
+        CPlTREF_exp = np.array([], dtype=np.float32)
 
+        for idx, cas in enumerate(param.CAS):
+            CPsTREF_exp = np.append(CPsTREF_exp, np.array(self.retrive_param_from_DB(cas, 'CpsTref'), dtype=np.float32))
+            CPlTREF_exp = np.append(CPlTREF_exp, np.array(self.retrive_param_from_DB(cas, 'CplTref'), dtype=np.float32))
+
+        if 100 < T <= Tg:
+            CP = np.sum(CPsTREF_exp * (1 + 3 * 1e-3 * (T - 298)) * co_molefrac)
+        elif T > Tg:
+            CP = np.sum(CPlTREF_exp * (1 + 1.3 * 1e-3 * (T - 298)) * co_molefrac)
+
+        return CP
+
+    def compute_solid_thermal_conductivity_Askadskii_Matveev(self, param, co_molefrac, T):
+
+        Tg = self.compute_glassify_temperature_Askadskii_Matveev(param, co_molefrac)
+        ac_sum_arr = np.array([], dtype=np.float32)
+        vdw_arr = np.array([], dtype=np.float32)
+        mw_arr = np.array([], np.float32)
+        a_num = np.array([])
+        for i, cas in enumerate(param.CAS):
+            mw_arr = np.append(mw_arr, np.array(self.retrive_param_from_DB(cas, 'MW'), dtype=np.float32))
+            a_num = np.append(a_num, np.array(self.retrive_param_from_DB(cas, 'ANum'), dtype=np.float32))
+            ac_ = self.retrive_param_from_DB(cas, 'AC')
+            number_array = list(map(int, ac_))
+            ac_arr = np.array(number_array)
+            ac_sum = np.sum(ac_arr * self.param['atomic constants'])
+            ac_sum_arr = np.append(ac_sum_arr, ac_sum)
+            vdw_arr = np.append(vdw_arr, np.array(self.retrive_param_from_DB(cas, 'DVAMVDW'), dtype=np.float32))
+
+        A = np.sum(ac_sum_arr * co_molefrac) / np.sum(vdw_arr * co_molefrac * 0.6022)
+
+        tc = A * self.compute_solid_heat_capacity_Bicerano(param, T,
+                                                           co_molefrac) * self.compute_solid_density_Askadskii_Matveev(
+            param, T, co_molefrac) ** (4 / 3) / (np.sum(mw_arr * co_molefrac) / np.sum(a_num * co_molefrac)) ** (1 / 3)
+
+        return tc/100
