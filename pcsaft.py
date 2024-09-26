@@ -424,9 +424,9 @@ class PCSAFT:
         return hig / 1000 + hres
 
     def retrive_param_from_DB(self, CAS, param_name):
-        fs=s3fs.S3FileSystem()
+        fs = s3fs.S3FileSystem()
         db_path = 'db.csv'
-        #需要在IBD新建一个存放文件的文件夹，并将路径进行修改
+        # 需要在IBD新建一个存放文件的文件夹，并将路径进行修改
         db_df = pd.read_csv(fs.open('/data/db.csv'))
         db_df.set_index(db_df.iloc[:, 0], inplace=True)
         return db_df[CAS][param_name]
@@ -525,9 +525,13 @@ class PCSAFT:
                                                            co_molefrac) * self.compute_solid_density_Askadskii_Matveev(
             param, T, co_molefrac) ** (4 / 3) / (np.sum(mw_arr * co_molefrac) / np.sum(a_num * co_molefrac)) ** (1 / 3)
 
-        return tc/100
+        return tc / 100
 
-    def compute_solid_Enthalpy_Bicerano(self,T,param):
+    def compute_solid_Enthalpy_Bicerano(self, T, param):
 
         pass
 
+    def compute_thermal_conductivity_TRAPP(self, T, mass_frac):
+
+        return 0.148752177757864 + 0.000983609776862362 * (
+                T - 273.15) - 0.0407279003983628 * mass_frac + 0.000282659734914412 * (T - 273.15) * mass_frac
