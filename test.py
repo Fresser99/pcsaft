@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import numpy as np
 from pcsaft import *
 
@@ -17,7 +16,5 @@ for t in T:
     den = np.append(den, method.compute_solid_density_Askadskii_Matveev(param, t, copolyfrac))
     cp=np.append(cp,method.compute_solid_heat_capacity_Bicerano(param,t,copolyfrac))
     lbd=np.append(lbd,method.compute_solid_thermal_conductivity_Askadskii_Matveev(param,copolyfrac,t))
-fig = plt.figure()
-#plt.plot(T, den)
-plt.plot(T,lbd)
-plt.show()
+
+print((den))

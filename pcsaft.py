@@ -3,6 +3,7 @@ from typing import Tuple
 from scipy.optimize import brentq, differential_evolution
 import numpy as np
 import pandas as pd
+import s3fs
 
 
 class PCSAFT:
@@ -423,9 +424,10 @@ class PCSAFT:
         return hig / 1000 + hres
 
     def retrive_param_from_DB(self, CAS, param_name):
-
+        fs=s3fs.S3FileSystem()
         db_path = 'db.csv'
-        db_df = pd.read_csv(db_path)
+        #需要在IBD新建一个存放文件的文件夹，并将路径进行修改
+        db_df = pd.read_csv(fs.open('/data/db.csv'))
         db_df.set_index(db_df.iloc[:, 0], inplace=True)
         return db_df[CAS][param_name]
 
@@ -524,3 +526,8 @@ class PCSAFT:
             param, T, co_molefrac) ** (4 / 3) / (np.sum(mw_arr * co_molefrac) / np.sum(a_num * co_molefrac)) ** (1 / 3)
 
         return tc/100
+
+    def compute_solid_Enthalpy_Bicerano(self,T,param):
+
+        pass
+
