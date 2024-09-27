@@ -215,18 +215,18 @@ def main():
     density_slurry_140 = (df.values[0, 1] + df.values[0, 4] + df.values[0, 7]) / (tot_v_sol_140 + tot_v_liq_140)
     density_slurry_150 = (df.values[0, 2] + df.values[0, 5] + df.values[0, 8]) / (tot_v_sol_150 + tot_v_liq_150)
 
-    cp_liq_130 = np.sum(
-        method.compute_cpig(T_130_log_mean, param, np.array([0, 0])) * mole_frac_R130) / np.sum(
-        np.array([56, 50.4875]) * np.array(
-            [w_IB_R130, 1 - w_IB_R130])) / 1000
-    cp_liq_140 = np.sum(
-        method.compute_cpig(T_140_log_mean, param, np.array([0, 0])) * mole_frac_R140) / np.sum(
-        np.array([56, 50.4875]) * np.array(
-            [w_IB_R140, 1 - w_IB_R140])) / 1000
-    cp_liq_150 = np.sum(
-        method.compute_cpig(T_150_log_mean, param, np.array([0, 0])) * mole_frac_R150) / np.sum(
-        np.array([56, 50.4875]) * np.array(
-            [w_IB_R150, 1 - w_IB_R150])) / 1000
+    # cp_liq_130 = np.sum(
+    #     method.compute_cpig(T_130_log_mean, param, np.array([0, 0])) * mole_frac_R130) / np.sum(
+    #     np.array([56, 50.4875]) * np.array(
+    #         [w_IB_R130, 1 - w_IB_R130])) / 1000
+    # cp_liq_140 = np.sum(
+    #     method.compute_cpig(T_140_log_mean, param, np.array([0, 0])) * mole_frac_R140) / np.sum(
+    #     np.array([56, 50.4875]) * np.array(
+    #         [w_IB_R140, 1 - w_IB_R140])) / 1000
+    # cp_liq_150 = np.sum(
+    #     method.compute_cpig(T_150_log_mean, param, np.array([0, 0])) * mole_frac_R150) / np.sum(
+    #     np.array([56, 50.4875]) * np.array(
+    #         [w_IB_R150, 1 - w_IB_R150])) / 1000
 
     cp_liq_130_mix = np.sum(method.compute_liquid_heat_capacity(T_130_log_mean, param) * mole_frac_R130) / np.sum(
         np.array([56, 50.4875]) * np.array(
@@ -275,14 +275,14 @@ def main():
     # h_liq_140 = method.compute_Enthalpy(hig_liq_mix_140, hres_liq_140)
     # h_liq_150 = method.compute_Enthalpy(hig_liq_mix_150, hres_liq_150)
 
-    param3 = Param
-    param3.m = np.array([0.0238 * 10000])
-    param3.e = np.array([223])
-    param3.s = np.array([4.088])
-    param3.type = np.array([1])
-    param3.k_ij = np.array([0.])
-    param3.CPIG = np.array([-66039, 715.84, -0.7804, 0.0003255, 0, 0, 280, 1000, 36029.2, 0.142427, 2.244683])
-    param3.HIGTREF = np.array([0.])
+    # param3 = Param
+    # param3.m = np.array([0.0238 * 10000])
+    # param3.e = np.array([223])
+    # param3.s = np.array([4.088])
+    # param3.type = np.array([1])
+    # param3.k_ij = np.array([0.])
+    # param3.CPIG = np.array([-66039, 715.84, -0.7804, 0.0003255, 0, 0, 280, 1000, 36029.2, 0.142427, 2.244683])
+    # param3.HIGTREF = np.array([0.])
 
     # den_sol_130 = method.compute_density(T_130_log_mean, p_130_log_mean, np.array([1.]), 0, param3)
     # hres_sol_130 = method.compute_hres(T_130_log_mean, den_sol_130, np.array([1.]), param3)
