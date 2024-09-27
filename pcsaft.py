@@ -504,7 +504,7 @@ class PCSAFT:
 
     def compute_solid_thermal_conductivity_Askadskii_Matveev(self, param, co_molefrac, T):
 
-        Tg = self.compute_glassify_temperature_Askadskii_Matveev(param, co_molefrac)
+        # Tg = self.compute_glassify_temperature_Askadskii_Matveev(param, co_molefrac)
         ac_sum_arr = np.array([], dtype=np.float32)
         vdw_arr = np.array([], dtype=np.float32)
         mw_arr = np.array([], np.float32)
@@ -535,3 +535,24 @@ class PCSAFT:
 
         return 0.148752177757864 + 0.000983609776862362 * (
                 T - 273.15) - 0.0407279003983628 * mass_frac + 0.000282659734914412 * (T - 273.15) * mass_frac
+
+    def compute_liquid_heat_capacity(self, T, param):
+
+        cp_arr = np.zeros(len(param.CAS))
+        for idx, cp_dip in enumerate(param.CPDIP):
+            c6 = cp_dip[5]
+            c7 = cp_dip[6]
+
+            if c6 <= T <= c7:
+
+                cp_arr[idx] = np.sum(T ** np.arange(5) * cp_dip[:5])
+            elif T < c6:
+
+                cp_arr[idx] = (np.sum((c6 - 1e-6) ** np.arange(5) * cp_dip[:5]) - np.sum(
+                    c6 ** np.arange(5) * cp_dip[:5])) / (-1e-6) * (T - c6) + np.sum(c6 ** np.arange(5) * cp_dip[:5])
+            else:
+
+                cp_arr[idx] = (np.sum((c7 + 1e-6) ** np.arange(5) * cp_dip[:5]) - np.sum(
+                    c7 ** np.arange(5) * cp_dip[:5])) / 1e-6 * (T - c7) + np.sum(c7 ** np.arange(5) * cp_dip[:5])
+
+        return cp_arr
