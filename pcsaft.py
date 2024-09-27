@@ -44,7 +44,7 @@ class PCSAFT:
                  3.504, 4.83, -2.755, 0.954])
         }
 
-    def compute_z(self, rho: float, T: float, comp: np.ndarray, param):
+    def compute_z(self, rho: float, T: float, comp, param):
         d = param.s * (1 - 0.12 * np.exp(-3 * param.e / T))
 
         Den = rho * self.param['N_av'] / 1e30
@@ -75,7 +75,7 @@ class PCSAFT:
 
         return 1 + Zhc + Zdisp
 
-    def _compute_hs_terms(self, d: np.ndarray, zeta: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def _compute_hs_terms(self, d, zeta):
         d_ij = d[:, np.newaxis] + d
         d_ij_term = d[:, np.newaxis] * d / d_ij
         g_hs = 1 / (1 - zeta[3]) + d_ij_term * 3 * zeta[2] / (1 - zeta[3]) ** 2 + d_ij_term ** 2 * 2 * zeta[2] ** 2 / (
@@ -87,11 +87,11 @@ class PCSAFT:
 
         return g_hs, delta_ghs_rho
 
-    def _compute_zhs(self, zeta: np.ndarray):
+    def _compute_zhs(self, zeta):
         return zeta[3] / (1 - zeta[3]) + 3 * zeta[1] * zeta[2] / zeta[0] / (1 - zeta[3]) ** 2 + \
             (3 * (zeta[2] ** 3) - zeta[3] * (zeta[2] ** 3)) / zeta[0] / (1 - zeta[3]) ** 3
 
-    def _compute_ab(self, m_avg: float) -> tuple[np.ndarray, np.ndarray]:
+    def _compute_ab(self, m_avg: float):
         a = self.param['a0'] + (m_avg - 1) / m_avg * self.param['a1'] + (m_avg - 1) / m_avg * (m_avg - 2) / m_avg * \
             self.param['a2']
         b = self.param['b0'] + (m_avg - 1) / m_avg * self.param['b1'] + (m_avg - 1) / m_avg * (m_avg - 2) / m_avg * \
@@ -99,14 +99,14 @@ class PCSAFT:
 
         return a, b
 
-    def _compute_I_terms(self, eta3: float, a: np.ndarray, b: np.ndarray):
+    def _compute_I_terms(self, eta3: float, a, b):
         eta3_powers = eta3 ** np.arange(7)
         I2 = np.sum(b * eta3_powers)
         deltaI1_det = np.sum(a * np.arange(1, 8) * eta3_powers)
         deltaI2_det = np.sum(b * np.arange(1, 8) * eta3_powers)
         return I2, deltaI1_det, deltaI2_det
 
-    def _compute_C_terms(self, m_avg: float, eta3: float) -> tuple[float, float]:
+    def _compute_C_terms(self, m_avg: float, eta3: float):
         C1 = 1 / (1 + m_avg * (8 * eta3 - 2 * eta3 ** 2) / ((1 - eta3) ** 4) + (1 - m_avg) * (
                 20 * eta3 - 27 * eta3 ** 2 + 12 * eta3 ** 3 - 2 * eta3 ** 4) / (((1 - eta3) * (2 - eta3)) ** 2))
         C2 = -C1 ** 2 * (m_avg * (-4 * eta3 ** 2 + 20 * eta3 + 8) / ((1 - eta3) ** 5) + (1 - m_avg) * (
@@ -135,7 +135,7 @@ class PCSAFT:
         except Exception as e:
             raise ValueError(f"无法计算密度: {str(e)}")
 
-    def _solve_density(self, rho_low, rho_up, T, p, comp: np.ndarray,
+    def _solve_density(self, rho_low, rho_up, T, p, comp,
                        param):
 
         rho_low = self.compute_molar_density(rho_low, T, len(comp), comp, param)
@@ -146,8 +146,8 @@ class PCSAFT:
 
         return brentq(f, rho_low, rho_up, xtol=1e-8, maxiter=200)
 
-    def _solve_multiple_roots(self, x_low, x_up, T: float, p: float, comp: np.ndarray,
-                              param) -> float:
+    def _solve_multiple_roots(self, x_low, x_up, T: float, p: float, comp,
+                              param):
 
         bounds = list(zip(x_low, x_up))
         result = differential_evolution(lambda x: self.compute_Gres(T, x[0], comp, param),
@@ -161,7 +161,7 @@ class PCSAFT:
             bounds, popsize=20, tol=1e-8)
         return self.compute_molar_density(result.x[0], T, len(comp), comp, param)
 
-    def _find_root_intervals(self, rho_guesses, T: float, p: float, comp: np.ndarray, param):
+    def _find_root_intervals(self, rho_guesses, T: float, p: float, comp, param):
 
         x_low, x_up = [], []
         P_err_prev = self.compute_pressure_residual(
@@ -179,7 +179,7 @@ class PCSAFT:
 
         return x_low, x_up
 
-    def _validate_inputs(self, T: float, p: float, comp: np.ndarray, phase: int, param):
+    def _validate_inputs(self, T: float, p: float, comp, phase: int, param):
         """验证输入参数"""
         if T <= 0 or p <= 0:
             raise ValueError("温度和压力必须为正值")
@@ -427,7 +427,7 @@ class PCSAFT:
         fs = s3fs.S3FileSystem()
         db_path = 'db.csv'
         # 需要在IBD新建一个存放文件的文件夹，并将路径进行修改
-        db_df = pd.read_csv(fs.open('/data/db.csv'))
+        db_df = pd.read_csv(db_path)
         db_df.set_index(db_df.iloc[:, 0], inplace=True)
         return db_df[CAS][param_name]
 

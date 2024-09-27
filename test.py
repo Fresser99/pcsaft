@@ -17,4 +17,4 @@ for t in T:
     cp=np.append(cp,method.compute_solid_heat_capacity_Bicerano(param,t,copolyfrac))
     lbd=np.append(lbd,method.compute_solid_thermal_conductivity_Askadskii_Matveev(param,copolyfrac,t))
 
-print((den))
+print((cp))

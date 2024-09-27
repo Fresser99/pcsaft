@@ -1,5 +1,8 @@
 import numpy as np
 import math
+
+import pandas as pd
+
 from pcsaft import *
 from param import *
 import redis
@@ -59,7 +62,7 @@ def main():
                 'TI_A15503']
 
     df = read_redis(**datasource_config, tag_list=tag_list)
-
+    df=pd.DataFrame([10500.,10500,10500,1400,1300,1380,0.,0.,0.,3.7,2.8,3.1,-92.1,-93.8,-92.3,-94,1,-91.7,-94.2,113.1,121.1,131.1,121.1,111.1,108.1,37.1,2.9,74.1,73.2,73.5])
     def calculate_mole_fraction(w_a):
         m_a = 56
         m_b = 50.487
@@ -95,7 +98,7 @@ def main():
         [method.retrive_param_from_DB('115-11-7', 'PCFTV'), method.retrive_param_from_DB('74-87-3', 'PCFTV')],
         dtype=np.float32)
     param.k_ij = np.zeros([2, 2])
-    param.type = np.array([0])
+    param.type = np.array([0, 0])
     param.CPIG = np.array([[35463.9, 229574.8, 1166.14, 116871.6, 394.9803, 25, 1226.85],
                            [36220, 69810, 1805, 44470, 844.27, 298.15, 1500, 2.4161]])
     param.HIGTREF = np.array([-17.1, -85.7])
@@ -193,19 +196,35 @@ def main():
     tot_v_sol_130 = (conver_IB_130 + conver_IP_130) / (density_sol_130 * 1000)
     tot_v_sol_140 = (conver_IB_140 + conver_IP_140) / (density_sol_140 * 1000)
     tot_v_sol_150 = (conver_IB_150 + conver_IP_150) / (density_sol_150 * 1000)
+
+    mass_frac_130 = np.array([1 - (conver_IB_130 + conver_IP_130) / (df.values[0] + df.values[3] + df.values[6]),
+                              (conver_IB_130 + conver_IP_130) / (df.values[0] + df.values[3] + df.values[6])])
+    mass_frac_140 = np.array([1 - (conver_IB_140 + conver_IP_140) / (df.values[1] + df.values[4] + df.values[7]),
+                              (conver_IB_140 + conver_IP_140) / (df.values[1] + df.values[4] + df.values[7])])
+    mass_frac_150 = np.array([1 - (conver_IB_150 + conver_IP_150) / (df.values[2] + df.values[5] + df.values[8]),
+                              (conver_IB_150 + conver_IP_150) / (df.values[2] + df.values[5] + df.values[8])])
     # 淤浆密度
     density_slurry_130 = (df.values[0, 0] + df.values[0, 3] + df.values[0, 6]) / (tot_v_sol_130 + tot_v_liq_130)
     density_slurry_140 = (df.values[0, 0] + df.values[0, 4] + df.values[0, 7]) / (tot_v_sol_140 + tot_v_liq_140)
     density_slurry_150 = (df.values[0, 0] + df.values[0, 5] + df.values[0, 8]) / (tot_v_sol_150 + tot_v_liq_150)
 
-    cp_liq_130 = np.sum(method.compute_cpig(T_130_log_mean, param, np.array([0, 0])) * mole_frac_R130)
-    cp_liq_140 = np.sum(method.compute_cpig(T_140_log_mean, param, np.array([0, 0])) * mole_frac_R140)
-    cp_liq_150 = np.sum(method.compute_cpig(T_150_log_mean, param, np.array([0, 0])) * mole_frac_R150)
+    cp_liq_130 = np.sum(
+        method.compute_cpig(T_130_log_mean, param, np.array([0, 0])) / np.array([56, 50.4875]) * np.array(
+            [w_IB_R130, 1 - w_IB_R130]))
+    cp_liq_140 = np.sum(
+        method.compute_cpig(T_140_log_mean, param, np.array([0, 0])) / np.array([56, 50.4875]) * np.array(
+            [w_IB_R140, 1 - w_IB_R140]))
+    cp_liq_150 = np.sum(
+        method.compute_cpig(T_150_log_mean, param, np.array([0, 0])) / np.array([56, 50.4875]) * np.array(
+            [w_IB_R150, 1 - w_IB_R150]))
 
     # 聚合物热容
-    cp_sol_130 = method.compute_solid_heat_capacity_Bicerano(param_IIR, T_130_log_mean, co_molefrac_130)
-    cp_sol_140 = method.compute_solid_heat_capacity_Bicerano(param_IIR, T_140_log_mean, co_molefrac_140)
-    cp_sol_150 = method.compute_solid_heat_capacity_Bicerano(param_IIR, T_150_log_mean, co_molefrac_150)
+    cp_sol_130 = method.compute_solid_heat_capacity_Bicerano(param_IIR, T_130_log_mean, co_molefrac_130) / np.sum(
+        np.array([56, 68] * co_molefrac_130)) * 1000
+    cp_sol_140 = method.compute_solid_heat_capacity_Bicerano(param_IIR, T_140_log_mean, co_molefrac_140) / np.sum(
+        np.array([56, 68] * co_molefrac_140)) * 1000
+    cp_sol_150 = method.compute_solid_heat_capacity_Bicerano(param_IIR, T_150_log_mean, co_molefrac_150) / np.sum(
+        np.array([56, 68] * co_molefrac_150)) * 1000
 
     v_frac_phase_130 = np.array(
         [tot_v_liq_130 / (tot_v_sol_130 + tot_v_liq_130), tot_v_sol_130 / (tot_v_sol_130 + tot_v_liq_130)])
@@ -215,26 +234,26 @@ def main():
         [tot_v_liq_150 / (tot_v_sol_150 + tot_v_liq_150), tot_v_sol_150 / (tot_v_sol_150 + tot_v_liq_150)])
 
     # 淤浆热容
-    cp_slurry_130 = np.sum(v_frac_phase_130 * np.array([cp_liq_130, cp_sol_130]))
-    cp_slurry_140 = np.sum(v_frac_phase_140 * np.array([cp_liq_140, cp_sol_140]))
-    cp_slurry_150 = np.sum(v_frac_phase_150 * np.array([cp_liq_150, cp_sol_150]))
+    cp_slurry_130 = np.sum(mass_frac_130 * np.array([cp_liq_130, cp_sol_130]))
+    cp_slurry_140 = np.sum(mass_frac_140 * np.array([cp_liq_140, cp_sol_140]))
+    cp_slurry_150 = np.sum(mass_frac_150 * np.array([cp_liq_150, cp_sol_150]))
 
-    hres_liq_130 = method.compute_hres(T_130_log_mean, density_liq_130, mole_frac_R130, param)
-    hres_liq_140 = method.compute_hres(T_140_log_mean, density_liq_140, mole_frac_R140, param)
-    hres_liq_150 = method.compute_hres(T_150_log_mean, density_liq_150, mole_frac_R150, param)
-
-    hig_liq_arr_130 = method.compute_hig(param, T_130_log_mean)
-    hig_liq_arr_140 = method.compute_hig(param, T_140_log_mean)
-    hig_liq_arr_150 = method.compute_hig(param, T_150_log_mean)
-
-    hig_liq_mix_130 = method.compute_hig_mix(hig_liq_arr_130, mole_frac_R130)
-    hig_liq_mix_140 = method.compute_hig_mix(hig_liq_arr_140, mole_frac_R140)
-    hig_liq_mix_150 = method.compute_hig_mix(hig_liq_arr_150, mole_frac_R150)
+    # hres_liq_130 = method.compute_hres(T_130_log_mean, density_liq_130, mole_frac_R130, param)
+    # hres_liq_140 = method.compute_hres(T_140_log_mean, density_liq_140, mole_frac_R140, param)
+    # hres_liq_150 = method.compute_hres(T_150_log_mean, density_liq_150, mole_frac_R150, param)
+    #
+    # hig_liq_arr_130 = method.compute_hig(param, T_130_log_mean)
+    # hig_liq_arr_140 = method.compute_hig(param, T_140_log_mean)
+    # hig_liq_arr_150 = method.compute_hig(param, T_150_log_mean)
+    #
+    # hig_liq_mix_130 = method.compute_hig_mix(hig_liq_arr_130, mole_frac_R130)
+    # hig_liq_mix_140 = method.compute_hig_mix(hig_liq_arr_140, mole_frac_R140)
+    # hig_liq_mix_150 = method.compute_hig_mix(hig_liq_arr_150, mole_frac_R150)
 
     # 淤浆焓
-    h_liq_130 = method.compute_Enthalpy(hig_liq_mix_130, hres_liq_130)
-    h_liq_140 = method.compute_Enthalpy(hig_liq_mix_140, hres_liq_140)
-    h_liq_150 = method.compute_Enthalpy(hig_liq_mix_150, hres_liq_150)
+    # h_liq_130 = method.compute_Enthalpy(hig_liq_mix_130, hres_liq_130)
+    # h_liq_140 = method.compute_Enthalpy(hig_liq_mix_140, hres_liq_140)
+    # h_liq_150 = method.compute_Enthalpy(hig_liq_mix_150, hres_liq_150)
 
     param3 = Param
     param3.m = np.array([0.0238 * 10000])
@@ -245,29 +264,29 @@ def main():
     param3.CPIG = np.array([-66039, 715.84, -0.7804, 0.0003255, 0, 0, 280, 1000, 36029.2, 0.142427, 2.244683])
     param3.HIGTREF = np.array([0.])
 
-    den_sol_130 = method.compute_density(T_130_log_mean, p_130_log_mean, np.array([1.]), 0, param3)
-    hres_sol_130 = method.compute_hres(T_130_log_mean, den_sol_130, np.array([1.]), param3)
-    hres_sol_cor_130 = method.compute_hres_correction(hres_sol_130, 10000 / 56)
-    hig_sol_130 = method.compute_hig(param3, T_130_log_mean)
-    # 聚合物焓
-    hig_sol_mix_130 = method.compute_hig_mix(hig_sol_130, np.array([1.]))
-    h_sol_130 = hres_sol_cor_130 + hig_sol_mix_130
+    # den_sol_130 = method.compute_density(T_130_log_mean, p_130_log_mean, np.array([1.]), 0, param3)
+    # hres_sol_130 = method.compute_hres(T_130_log_mean, den_sol_130, np.array([1.]), param3)
+    # hres_sol_cor_130 = method.compute_hres_correction(hres_sol_130, 10000 / 56)
+    # hig_sol_130 = method.compute_hig(param3, T_130_log_mean)
+    # # 聚合物焓
+    # hig_sol_mix_130 = method.compute_hig_mix(hig_sol_130, np.array([1.]))
+    # h_sol_130 = hres_sol_cor_130 + hig_sol_mix_130
 
-    den_sol_140 = method.compute_density(T_140_log_mean, p_140_log_mean, np.array([1.]), 0, param3)
-    hres_sol_140 = method.compute_hres(T_140_log_mean, den_sol_140, np.array([1.]), param3)
-    hres_sol_cor_140 = method.compute_hres_correction(hres_sol_140, 10000 / 56)
-    hig_sol_140 = method.compute_hig(param3, T_140_log_mean)
-    # 聚合物焓
-    hig_sol_mix_140 = method.compute_hig_mix(hig_sol_140, np.array([1.]))
-    h_sol_140 = hres_sol_cor_140 + hig_sol_mix_140
-
-    den_sol_150 = method.compute_density(T_150_log_mean, p_150_log_mean, np.array([1.]), 0, param3)
-    hres_sol_150 = method.compute_hres(T_150_log_mean, den_sol_150, np.array([1.]), param3)
-    hres_sol_cor_150 = method.compute_hres_correction(hres_sol_150, 10000 / 56)
-    hig_sol_150 = method.compute_hig(param3, T_150_log_mean)
-    # 聚合物焓
-    hig_sol_mix_150 = method.compute_hig_mix(hig_sol_150, np.array([1.]))
-    h_sol_150 = hres_sol_cor_150 + hig_sol_mix_150
+    # den_sol_140 = method.compute_density(T_140_log_mean, p_140_log_mean, np.array([1.]), 0, param3)
+    # hres_sol_140 = method.compute_hres(T_140_log_mean, den_sol_140, np.array([1.]), param3)
+    # hres_sol_cor_140 = method.compute_hres_correction(hres_sol_140, 10000 / 56)
+    # hig_sol_140 = method.compute_hig(param3, T_140_log_mean)
+    # # 聚合物焓
+    # hig_sol_mix_140 = method.compute_hig_mix(hig_sol_140, np.array([1.]))
+    # h_sol_140 = hres_sol_cor_140 + hig_sol_mix_140
+    #
+    # den_sol_150 = method.compute_density(T_150_log_mean, p_150_log_mean, np.array([1.]), 0, param3)
+    # hres_sol_150 = method.compute_hres(T_150_log_mean, den_sol_150, np.array([1.]), param3)
+    # hres_sol_cor_150 = method.compute_hres_correction(hres_sol_150, 10000 / 56)
+    # hig_sol_150 = method.compute_hig(param3, T_150_log_mean)
+    # # 聚合物焓
+    # hig_sol_mix_150 = method.compute_hig_mix(hig_sol_150, np.array([1.]))
+    # h_sol_150 = hres_sol_cor_150 + hig_sol_mix_150
 
     # 聚合物热导率
     tc_sol_130 = method.compute_solid_thermal_conductivity_Askadskii_Matveev(param_IIR, co_molefrac_130, T_130_log_mean)
@@ -330,7 +349,7 @@ def main():
                 "Cal_RubberDEN_V135": density_sol_135,
                 "Cal_RubberDEN_V145": density_sol_145,
                 "Cal_RubberDEN_V155": density_sol_155,
-                "Cal_RubberTg": Tg_130,
+                "Cal_RubberTg_R130": Tg_130 - 273.15,
                 "Cal_RubberThermoConduct_R130": tc_sol_130,
                 "Cal_RubberThermoConduct_R140": tc_sol_140,
                 "Cal_RubberThermoConduct_R150": tc_sol_150,
@@ -339,7 +358,9 @@ def main():
                 "Cal_ThermoConduct_R150": tc_slurry_150,
                 "Cal_RubberThermoConduct_V135": tc_sol_135,
                 "Cal_RubberThermoConduct_V145": tc_sol_145,
-                "Cal_RubberThermoConduct_V155": tc_sol_155
+                "Cal_RubberThermoConduct_V155": tc_sol_155,
+                "Cal_RubberTg_R140": Tg_140 - 273.15,
+                "Cal_RubberTg_R150": Tg_150 - 273.15,
 
             }
         }, "requestBase": {
