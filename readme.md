@@ -9,6 +9,7 @@
 <img width="415" alt="image" src="https://github.com/user-attachments/assets/9cd74dd6-53bb-46e1-b559-c2f61df63ae2" />
 ### 混合物系
 #### 流股条件
+
 | 组分 | 含量 |  
 |------|------|  
 | TICL4 | 0.036902158 |  
