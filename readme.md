@@ -4,6 +4,9 @@
 作者：ZFY
 日期：9月22日
 
+## 部分测试结果
+<img width="415" alt="image" src="https://github.com/user-attachments/assets/9cd74dd6-53bb-46e1-b559-c2f61df63ae2" />
+
 
 ## 算法说明
 
